@@ -6,7 +6,7 @@ import sys
 
 try:
     # First try normal loading
-        model = joblib.load("stacking_model.pkl")
+    model = joblib.load("stacking_model_latest.pkl")
 except Exception as e:
     st.error(f"Error loading model: {e}")
     
