@@ -1,9 +1,10 @@
 streamlit==1.39.0
+streamlit-autorefresh
+pandas
+numpy
+joblib
 scikit-learn
 xgboost
 tensorflow
-joblib
-pandas
-numpy
 matplotlib
 shap
