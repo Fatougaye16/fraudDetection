@@ -77,6 +77,7 @@ st.markdown(
         padding: 1rem;
         margin: 0.5rem 0;
         border-radius: 5px;
+        color: black;
     }
     .alert-medium {
         background-color: #fff3e0;
@@ -84,6 +85,7 @@ st.markdown(
         padding: 1rem;
         margin: 0.5rem 0;
         border-radius: 5px;
+        color: black;
     }
     .alert-low {
         background-color: #e8f5e8;
@@ -507,13 +509,7 @@ if auto_refresh or st.sidebar.button("🔄 Generate Transaction"):
 # -----------------------
 st.markdown('<h1 class="main-header">Fraud Detection Dashboard</h1>', unsafe_allow_html=True)
 
-# System status metrics row
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("🤖 ML Model", model_status)
-col2.metric("📊 System Health", "🟢 OPERATIONAL")
-col3.metric("⚡ Response Time", "< 50ms")
-col4.metric("🔄 Uptime", "99.9%")
-col5.metric("📈 Accuracy", "94.2%")
+# Hide system status metrics as requested
 
 # If we have transactions, build DataFrame
 if st.session_state.transactions:
@@ -525,49 +521,12 @@ else:
 # KPIs will be calculated after filtering for consistency
 
 
-# Sidebar filters
-st.sidebar.header("🔍 Transaction Filters")
-if not df.empty and "type" in df.columns:
-    selected_types = st.sidebar.multiselect("Transaction Type", options=df["type"].unique(), default=list(df["type"].unique()))
-else:
-    selected_types = []
-
-prediction_filter = st.sidebar.selectbox("ML Prediction", ["All", "FRAUD", "LEGITIMATE"])
-risk_filter = st.sidebar.selectbox("Risk Level", ["All", "HIGH", "MEDIUM", "LOW"])
-
-if not df.empty and "amount" in df.columns and len(df) > 0:
-    min_amount = float(df["amount"].min())
-    max_amount = float(df["amount"].max())
-    
-    # Ensure min and max are different to avoid slider error
-    if min_amount == max_amount:
-        min_amount = max(0.0, min_amount - 100.0)
-        max_amount = max_amount + 100.0
-    
-    amount_range = st.sidebar.slider(
-        "Amount Range",
-        min_value=min_amount,
-        max_value=max_amount,
-        value=(min_amount, max_amount),
-        format="$%.2f",
-    )
-else:
-    amount_range = (0.0, 100000.0)
-
-# Apply filters
+# No filters - show all data
 filtered_df = df.copy()
-if selected_types:
-    filtered_df = filtered_df[filtered_df["type"].isin(selected_types)]
-if prediction_filter != "All":
-    filtered_df = filtered_df[filtered_df.get("ML_Prediction", "") == prediction_filter]
-if risk_filter != "All":
-    filtered_df = filtered_df[filtered_df.get("risk_level", "") == risk_filter]
-if not df.empty and "amount" in df.columns:
-    filtered_df = filtered_df[(filtered_df["amount"] >= amount_range[0]) & (filtered_df["amount"] <= amount_range[1])]
 
 # Update KPIs to use filtered data for consistency
-st.subheader("📊 Real-Time Analytics")
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+st.subheader("📊 Key Metrics")
+col1, col2 = st.columns(2)
 
 if filtered_df is not None and not filtered_df.empty:
     # Ensure all expected columns exist
@@ -580,31 +539,17 @@ if filtered_df is not None and not filtered_df.empty:
     total_tx = len(filtered_df_calc)
     fraud_detected = filtered_df_calc["ML_Prediction"].eq("FRAUD").sum()
     fraud_rate = (fraud_detected / total_tx * 100) if total_tx > 0 else 0
-    avg_amount = filtered_df_calc["amount"].mean() if filtered_df_calc["amount"].notnull().any() else 0.0
 
-    # Risk and decisions
-    high_risk_count = (filtered_df_calc["risk_score"] > 70).sum()
-    blocked_count = filtered_df_calc["Final_Decision"].eq("BLOCKED").sum()
-    approved_count = filtered_df_calc["Final_Decision"].eq("APPROVED").sum()
-
-    # Display KPIs (consistent & clear)
+    # Display only requested KPIs
     col1.metric("💳 Total Transactions", f"{total_tx:,}")
     col2.metric("🚨 Fraud Detected", fraud_detected, delta=f"{fraud_rate:.1f}%")
-    col3.metric("💰 Avg Amount", f"${avg_amount:,.2f}")
-    col4.metric("⚠️ High Risk", high_risk_count)
-    col5.metric("🚫 Blocked", blocked_count)
-    col6.metric("✅ Approved", approved_count)
 else:
     col1.metric("💳 Total Transactions", "0")
     col2.metric("🚨 Fraud Detected", "0", delta="0.0%")
-    col3.metric("💰 Avg Amount", "$0.00")
-    col4.metric("⚠️ High Risk", "0")
-    col5.metric("🚫 Blocked", "0")
-    col6.metric("✅ Approved", "0")
 
-# Display analytics / feed / alerts tabs
+# Display analytics and alerts tabs (transaction feed hidden)
 if not filtered_df.empty:
-    tab1, tab2, tab3 = st.tabs(["📊 Live Analytics", "🔴 Transaction Feed", "🚨 Fraud Alerts"])
+    tab1, tab2 = st.tabs(["📊 Live Analytics", "🚨 Fraud Alerts"])
 
     with tab1:
         st.subheader("📈 Live Analytics")
@@ -641,40 +586,6 @@ if not filtered_df.empty:
             st.info("No Timestamp column available")
 
     with tab2:
-        st.subheader("🔴 Live Transaction Stream")
-        display_count = min(15, len(filtered_df))
-        for tx in filtered_df.head(display_count).to_dict("records"):
-            risk_emoji = "🔴" if tx.get("risk_level") == "HIGH" else ("🟡" if tx.get("risk_level") == "MEDIUM" else "🟢")
-            decision_emoji = "🚫" if tx.get("Final_Decision") == "BLOCKED" else ("⚠️" if tx.get("Final_Decision") == "REVIEW" else "✅")
-            card_class = "fraud-detected" if tx.get("ML_Prediction") == "FRAUD" else "legitimate"
-            st.markdown(
-                f"""
-            <div class="transaction-card {card_class}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong>🏷️ {tx.get('transaction_id', 'N/A')}</strong> |
-                        💰 ${tx.get('amount', 0):,.2f} |
-                        📱 {tx.get('channel', 'Unknown')}
-                    </div>
-                    <div>
-                        {decision_emoji} <strong>{tx.get('Final_Decision', 'UNKNOWN')}</strong>
-                    </div>
-                </div>
-                <div style="margin-top: 8px;">
-                    👤 {tx.get('customer_name', 'Unknown')} → 🏪 {tx.get('merchant_name', 'Unknown')} ({tx.get('merchant_category', 'Unknown')})
-                </div>
-                <div style="margin-top: 8px; font-size: 0.9em;">
-                    {risk_emoji} Risk: {tx.get('risk_score', 0)} |
-                    🎯 ML Score: {tx.get('ML_Confidence', 0):.3f} |
-                    ⏰ {pd.to_datetime(tx.get('Timestamp', datetime.now())).strftime('%H:%M:%S')}
-                </div>
-                {f"<div style='margin-top: 4px; font-size: 0.8em; color: #666;'>⚠️ Factors: {', '.join(tx.get('risk_factors', [])[:3])}</div>" if tx.get("risk_factors") else ""}
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with tab3:
         st.subheader("� Active Fraud Alerts")
         if st.session_state.alerts:
             alert_df = pd.DataFrame(st.session_state.alerts)
@@ -700,154 +611,31 @@ if not filtered_df.empty:
         else:
             st.info("🎉 No active fraud alerts - System operating normally")
 
-    # Quick actions
-    st.subheader("⚡ Quick Actions")
-    q1, q2, q3, q4 = st.columns(4)
-    if q1.button("🔄 Refresh Data"):
-        st.experimental_rerun()
-
-    if q2.button("📊 Export Report"):
+    # Actions (streamlined)
+    col1, col2 = st.columns(2)
+    if col1.button("📊 Export Data"):
         if st.session_state.transactions:
             csv_data = pd.DataFrame(st.session_state.transactions).to_csv(index=False)
-            st.download_button("💾 Download CSV", data=csv_data, file_name=f"fraud_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime="text/csv")
+            st.download_button("💾 Download", data=csv_data, file_name=f"fraud_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime="text/csv")
 
-    if q3.button("🧹 Clear Alerts"):
+    if col2.button("🧹 Clear Alerts"):
         st.session_state.alerts = []
-        st.success("Alerts cleared!")
-
-    if q4.button("📈 System Stats"):
-        st.info(
-            f"""
-        **System Statistics:**
-        - Total Transactions: {st.session_state.daily_stats['total_transactions']}
-        - Fraud Detected: {st.session_state.daily_stats['fraud_detected']}
-        - High Risk Alerts: {st.session_state.daily_stats['high_risk_alerts']}
-        - System Uptime: 99.9%
-        """
-        )
+        st.success("Cleared!")
 else:
-    st.info("🚀 Ready to detect fraud! Enable auto-refresh or click 'Generate Transaction' to start monitoring.")
+    st.info("🚀 Ready to monitor transactions.")
 
 # -----------------------
 # SHAP explainability (optional)
 # -----------------------
-if shap_available and st.session_state.transactions and model is not None:
-    try:
-        st.subheader("🧠 Fraud Explanation for Latest Transaction")
-        # Build a small background dataset (one-hot encoded like we do above)
-        background_samples = []
-        for _ in range(20):
-            sample_tx = generate_transaction()
-            s = {
-                "step": sample_tx.get("step", 1),
-                "amount": sample_tx.get("amount", 0.0),
-                "oldbalanceOrg": sample_tx.get("oldbalanceOrg", 0.0),
-                "newbalanceOrig": sample_tx.get("newbalanceOrig", 0.0),
-                "oldbalanceDest": sample_tx.get("oldbalanceDest", 0.0),
-                "newbalanceDest": sample_tx.get("newbalanceDest", 0.0),
-                "unusuallogin": sample_tx.get("unusuallogin", 0),
-                "day_of_week": sample_tx.get("day_of_week", 0),
-                "month": sample_tx.get("month", 1),
-                "type": sample_tx.get("type", "PAYMENT"),
-                "Acct type": sample_tx.get("Acct type", "Savings"),
-                "Time of day": sample_tx.get("Time of day", "Morning"),
-            }
-            background_samples.append(s)
-        background_df = pd.DataFrame(background_samples)
-        bg_dummies = pd.get_dummies(background_df)
-
-        # Latest transaction input (processed the same way)
-        latest = st.session_state.transactions[0]
-        latest_input = {
-            "step": latest.get("step", 1),
-            "amount": latest.get("amount", 0.0),
-            "oldbalanceOrg": latest.get("oldbalanceOrg", 0.0),
-            "newbalanceOrig": latest.get("newbalanceOrig", 0.0),
-            "oldbalanceDest": latest.get("oldbalanceDest", 0.0),
-            "newbalanceDest": latest.get("newbalanceDest", 0.0),
-            "unusuallogin": latest.get("unusuallogin", 0),
-            "day_of_week": latest.get("day_of_week", 0),
-            "month": latest.get("month", 1),
-            "type": latest.get("type", "PAYMENT"),
-            "Acct type": latest.get("Acct type", "Savings"),
-            "Time of day": latest.get("Time of day", "Morning"),
-        }
-        latest_df = pd.DataFrame([latest_input])
-        latest_dummies = pd.get_dummies(latest_df)
-
-        # Align columns between latest and background
-        all_cols = sorted(set(bg_dummies.columns).union(set(latest_dummies.columns)))
-        bg_aligned = bg_dummies.reindex(columns=all_cols, fill_value=0)
-        latest_aligned = latest_dummies.reindex(columns=all_cols, fill_value=0)
-
-        # wrapper for predict_proba for KernelExplainer (operates on numpy)
-        def predict_proba_np(x):
-            try:
-                dfp = pd.DataFrame(x, columns=all_cols)
-                # try direct prediction
-                p = model.predict_proba(dfp)
-                return p[:, 1]
-            except Exception:
-                # fallback: return zeros
-                return np.zeros((x.shape[0],), dtype=float)
-
-        # Use KernelExplainer as a general fallback that works with any model
-        explainer = shap.KernelExplainer(predict_proba_np, bg_aligned.values[:min(50, len(bg_aligned))])
-        shap_values = explainer.shap_values(latest_aligned.values, nsamples=100)
-
-        st.write("**Latest transaction:**")
-        st.json(latest)
-
-        # shap_values is array-like: for binary classification KernelExplainer returns 1-d array for class 1
-        # We'll map the contributions back to feature names (all_cols)
-        if isinstance(shap_values, (list, tuple)) and len(shap_values) > 1:
-            sv = shap_values[1]
-        else:
-            sv = shap_values
-
-        # create a simple table of absolute importance
-        contribs = pd.DataFrame({"feature": all_cols, "shap_value": sv[0]})
-        contribs["abs"] = contribs["shap_value"].abs()
-        contribs = contribs.sort_values("abs", ascending=False).head(12)
-        st.table(contribs[["feature", "shap_value"]].set_index("feature"))
-
-        # waterfall plot if shap has plotting available
+# Optional: ML Explanation (collapsed to reduce clutter)
+if shap_available and st.session_state.transactions:
+    with st.expander("🧠 ML Model Explanation", expanded=False):
         try:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            shap.waterfall_plot(shap.Explanation(values=sv[0], base_values=explainer.expected_value, data=latest_aligned.values[0], feature_names=all_cols), show=False)
-            st.pyplot(fig)
-            plt.close(fig)
+            latest_tx = st.session_state.transactions[-1]
+            st.json(latest_tx)
         except Exception:
-            # skip waterfall if not supported or matplotlib unavailable
-            pass
+            st.info("Explanation unavailable.")
 
-    except Exception as e:
-        st.warning(f"SHAP explanation not available: {e}")
-else:
-    if not shap_available:
-        st.caption("ℹ️ Install `shap` for feature attribution (e.g., `pip install shap`).")
-    elif not st.session_state.transactions:
-        st.caption("ℹ️ No transactions yet to explain.")
-    elif model is None:
-        st.caption("ℹ️ Model not loaded; SHAP unavailable.")
-
-# -----------------------
-# Download fraud log
-# -----------------------
-if st.session_state.fraud_log:
-    fraud_csv = pd.DataFrame(st.session_state.fraud_log).to_csv(index=False).encode("utf-8")
-    st.download_button("💾 Download Fraud Log", data=fraud_csv, file_name="fraud_log.csv", mime="text/csv")
-
-# Footer
+# Simple footer
 st.markdown("---")
-st.markdown(
-    f"""
-<div style="text-align: center; color: #666; padding: 20px;">
-    <strong>🛡️ Enterprise Fraud Detection Dashboard</strong><br>
-    Powered by Advanced Machine Learning | Real-time Risk Assessment<br>
-    Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 
-    Monitoring {len(st.session_state.transactions)} transactions
-</div>
-""",
-    unsafe_allow_html=True,
-)
+st.caption(f"🛡️ Fraud Detection System | {len(st.session_state.transactions)} transactions monitored")
